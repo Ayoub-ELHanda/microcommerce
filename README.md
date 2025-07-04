@@ -1,513 +1,247 @@
-# 🛒 Microcommerce - Système E-commerce avec Microservices
+# Microcommerce - Système de Gestion de Stock
 
-## 🎯 Description
+Système de microservices e-commerce avec gestion automatique des stocks.
 
-Ce projet implémente une **architecture microservices** pour un système e-commerce avec :
-- **3 services indépendants** (Product, Client, Command)
-- **Communication asynchrone** via RabbitMQ
-- **Bases de données MongoDB séparées**
-- **Orchestration intelligente** pour les commandes
+## Architecture
 
-## 📋 Description du Projet
+Le projet comprend 3 microservices :
 
-**Microcommerce** est une architecture de microservices complète pour un système e-commerce utilisant **Spring Boot**, **MongoDB**, et **RabbitMQ** pour la communication inter-services. Le système est entièrement containerisé avec **Docker** pour un déploiement simplifié.
+- **Product Service** (Port 8081) - Gestion des produits et stocks
+- **Client Service** (Port 8082) - Gestion des clients  
+- **Command Service** (Port 8083) - Gestion des commandes
 
-## 🏗️ Architecture
+## Technologies
+
+- Java 17 + Spring Boot 3.5.3
+- MongoDB pour la base de données
+- RabbitMQ pour la communication entre services
+- Docker et Docker Compose
+
+## Fonctionnalité Stock
+
+### Comment ça marche
+
+Quand une commande est créée :
+
+1. Le système vérifie le stock disponible
+2. Si insuffisant, la commande est refusée
+3. Si suffisant, la commande est créée et le stock est automatiquement réduit
+4. La mise à jour se fait via RabbitMQ entre les services
+
+### Exemple
 
 ```
-┌─────────────────┐    RabbitMQ     ┌─────────────────┐
-│  Product Service│◄──────────────►│ Command Service │
-│     Port 8081   │                │   Port 8083     │
-│   MongoDB:27017 │                │ MongoDB:27019   │
-└─────────────────┘                └─────────────────┘
-                                           ▲
-                                           │ RabbitMQ
-                                           ▼
-                                   ┌─────────────────┐
-                                   │  Client Service │
-                                   │    Port 8082    │
-                                   │  MongoDB:27018  │
-                                   └─────────────────┘
+Stock initial : 25
+- Commande de 3 unités → Stock devient 22
+- Commande de 1 unité → Stock devient 21  
+- Commande de 25 unités → ERREUR (stock insuffisant)
 ```
 
-## 🛠️ Technologies Utilisées
+## Installation
 
-- **Backend** : Spring Boot 3.5.3
-- **Base de données** : MongoDB
-- **Message Broker** : RabbitMQ 3.13.7
-- **Containerisation** : Docker & Docker Compose
-- **Java** : OpenJDK 17
-- **Build Tool** : Maven
+### Démarrer les services
 
-## 🚀 Installation et Démarrage
-
-### Prérequis
-- Docker Desktop installé et en fonctionnement
-- Git (pour cloner le projet)
-
-### 1. Cloner le projet
 ```bash
-git clone
-cd microcommerce
+docker-compose -f docker-compose-microservices.yml up -d --build
 ```
 
-### 3. Démarrage manuel
+### Vérifier le statut
 
-**Lancer tous les services :**
 ```bash
-docker-compose -f docker-compose-microservices.yml up -d
+docker-compose -f docker-compose-microservices.yml ps
 ```
 
-**Vérifier le statut :**
-```bash
-docker ps
-```
+### Accès aux services
 
-## 🎯 Services et Ports
+- Product API: http://localhost:8081/api/produits
+- Client API: http://localhost:8082/api/clients
+- Command API: http://localhost:8083/api/commands
+- RabbitMQ Management: http://localhost:15672 (admin/admin)
+- MongoDB Express Product: http://localhost:8091
+- MongoDB Express Client: http://localhost:8092  
+- MongoDB Express Command: http://localhost:8093
 
-| Service | Port | API Base | Database Port | Description |
-|---------|------|----------|---------------|-------------|
-| **Product Service** | 8081 | `/api/produits` | 27017 | Gestion des produits |
-| **Client Service** | 8082 | `/api/clients` | 27018 | Gestion des clients |
-| **Command Service** | 8083 | `/api/commands` | 27019 | Orchestrateur de commandes |
-| **RabbitMQ** | 5672 | Management: 15672 | - | Message broker |
+## API Usage
 
-## 🗄️ Interfaces MongoDB (Mongo Express)
+### Créer une commande
 
-| Database | Port | Interface URL | Credentials | Description |
-|----------|------|---------------|-------------|-------------|
-| **📦 Product Database** | 8091 | http://localhost:8091 | admin/admin123 | Interface web pour la base produits |
-| **👥 Client Database** | 8092 | http://localhost:8092 | admin/admin123 | Interface web pour la base clients |
-| **🛒 Command Database** | 8093 | http://localhost:8093 | admin/admin123 | Interface web pour la base commandes |
-
-### 🔍 Comment utiliser Mongo Express
-
-1. **Ouvrir l'interface** : Cliquez sur l'URL correspondante
-2. **Se connecter** : Utilisez `admin` / `admin123`
-3. **Explorer les données** : 
-   - Parcourez les collections (tables)
-   - Visualisez les documents JSON
-   - Recherchez et filtrez les données
-   - Modifiez directement les données si nécessaire
-
-## 📚 APIs Disponibles
-
-### 🛍️ Product Service (Port 8081)
-
-#### Endpoints produits
-```bash
-# Lister tous les produits
-GET http://localhost:8081/api/produits
-
-# Obtenir un produit par ID
-GET http://localhost:8081/api/produits/{id}
-
-# Créer un nouveau produit
-POST http://localhost:8081/api/produits
-Content-Type: application/json
-{
-  "nom": "Nom du produit",
-  "prix": 99
-}
-
-# Modifier un produit
-PUT http://localhost:8081/api/produits/{id}
-Content-Type: application/json
-{
-  "nom": "Nouveau nom",
-  "prix": 149
-}
-
-# Supprimer un produit
-DELETE http://localhost:8081/api/produits/{id}
-
-# Rechercher des produits
-GET http://localhost:8081/api/produits/search?nom=smartphone&prixMin=100&prixMax=1000
-
-# Compter les produits
-GET http://localhost:8081/api/produits/count
-
-# Ajout en masse
-POST http://localhost:8081/api/produits/bulk
-Content-Type: application/json
-[
-  {"nom": "Produit 1", "prix": 100},
-  {"nom": "Produit 2", "prix": 200}
-]
-```
-
-### 👤 Client Service (Port 8082)
-
-#### Endpoints clients
-```bash
-# Lister tous les clients
-GET http://localhost:8082/api/clients
-
-# Obtenir un client par ID
-GET http://localhost:8082/api/clients/{id}
-
-# Créer un nouveau client
-POST http://localhost:8082/api/clients
-Content-Type: application/json
-{
-  "nom": "Dupont",
-  "prenom": "Jean",
-  "email": "jean.dupont@email.com",
-  "telephone": "0123456789",
-  "adresse": "123 Rue de la Paix",
-  "ville": "Paris",
-  "codePostal": "75001",
-  "pays": "France"
-}
-
-# Modifier un client
-PUT http://localhost:8082/api/clients/{id}
-
-# Supprimer un client
-DELETE http://localhost:8082/api/clients/{id}
-
-# Rechercher par email
-GET http://localhost:8082/api/clients/search?email=jean@email.com
-
-# Statistiques
-GET http://localhost:8082/api/clients/statistics
-```
-
-### 🛒 Command Service (Port 8083) - Orchestrateur
-
-#### Endpoints commandes avec RabbitMQ
-```bash
-# Lister toutes les commandes
-GET http://localhost:8083/api/commands
-
-# Obtenir une commande par ID
-GET http://localhost:8083/api/commands/{id}
-
-# Créer une commande (avec communication RabbitMQ automatique)
+```http
 POST http://localhost:8083/api/commands
 Content-Type: application/json
+
 {
-  "clientId": "CLIENT_ID_HERE",
+  "clientId": "68678f98ba1a43846781d929",
   "items": [
     {
-      "productId": "PRODUCT_ID_HERE",
+      "productId": "6867affef596063526aff95f",
       "quantity": 2
     }
   ],
   "shippingAddress": "123 Rue de la Livraison, Paris",
   "paymentMethod": "Credit Card",
-  "notes": "Livraison rapide SVP"
+  "notes": "Livraison rapide"
 }
+```
 
-# Modifier le statut d'une commande
-PATCH http://localhost:8083/api/commands/{id}/status
-Content-Type: application/json
+### Réponse succès
+
+```json
 {
-  "status": "SHIPPED"
+  "command": {
+    "id": "6867bbe364ff991ccb3dbd6e",
+    "clientName": "Dupont Jean",
+    "items": [
+      {
+        "productName": "Test Product",
+        "quantity": 2,
+        "unitPrice": 1500.0,
+        "totalPrice": 3000.0
+      }
+    ],
+    "totalAmount": 3000.0,
+    "status": "PENDING"
+  },
+  "message": "Commande créée avec succès"
 }
-
-# Commandes par client
-GET http://localhost:8083/api/commands/client/{clientId}
-
-# Commandes par statut
-GET http://localhost:8083/api/commands/status/PENDING
-
-# Statistiques des commandes
-GET http://localhost:8083/api/commands/statistics
-
-# Compter les commandes
-GET http://localhost:8083/api/commands/count
 ```
 
-## 🔄 Communication RabbitMQ
+### Réponse erreur stock
 
-### Flow de création de commande
-
-1. **Réception commande** → Command Service (REST API)
-2. **Requête client** → RabbitMQ → Client Service
-3. **Requête produit** → RabbitMQ → Product Service
-4. **Réponses** → RabbitMQ → Command Service
-5. **Création commande enrichie** → Sauvegarde MongoDB
-6. **Réponse complète** → Client API
-
-### Queues RabbitMQ utilisées
-
-```
-product.query.queue     - Requêtes vers Product Service
-product.response.queue  - Réponses du Product Service
-client.query.queue      - Requêtes vers Client Service
-client.response.queue   - Réponses du Client Service
+```json
+{
+  "error": "Stock insuffisant",
+  "details": "Stock insuffisant pour Test Product (disponible: 1, demandé: 5)"
+}
 ```
 
-### Interface RabbitMQ
-- **URL** : http://localhost:15672
-- **Login** : admin
-- **Mot de passe** : admin123
+### Vérifier un produit
 
-## 📖 Exemples d'Utilisation Complets
-
-### 1. Créer un produit
-```bash
-curl -X POST http://localhost:8081/api/produits \
-  -H "Content-Type: application/json" \
-  -d '{
-    "nom": "iPhone 15",
-    "prix": 999
-  }'
+```http
+GET http://localhost:8081/api/produits/{id}
 ```
 
-### 2. Créer un client
-```bash
-curl -X POST http://localhost:8082/api/clients \
-  -H "Content-Type: application/json" \
-  -d '{
-    "nom": "Martin",
-    "prenom": "Sophie",
-    "email": "sophie.martin@email.com",
-    "telephone": "0987654321",
-    "adresse": "456 Avenue des Champs",
-    "ville": "Lyon",
-    "codePostal": "69000",
-    "pays": "France"
-  }'
+Réponse :
+```json
+{
+  "id": "6867affef596063526aff95f",
+  "nom": "Test Product",
+  "prix": 1500,
+  "stock": 21,
+  "inStock": true
+}
 ```
 
-### 3. Créer une commande (Communication RabbitMQ automatique)
+## Détails techniques
+
+### Code de mise à jour du stock
+
+Le stock est mis à jour dans plusieurs endroits :
+
+**1. CommandController (Command Service)**
+- Ligne 180-192 : Envoi du message RabbitMQ
+- Ligne 342-368 : Méthode `sendStockUpdate()`
+
+**2. ProductMessageListener (Product Service)** 
+- Ligne 100-130 : Traitement du message RabbitMQ
+- Ligne 150-165 : Sauvegarde en base
+
+**3. Product Model**
+- Ligne 75 : `this.stock -= quantity;` (réduction effective)
+- Ligne 80 : `this.stock += quantity;` (augmentation)
+
+### Message RabbitMQ
+
+```json
+{
+  "correlationId": "uuid",
+  "productId": "productId", 
+  "operation": "REDUCE",
+  "quantity": 2,
+  "commandId": "commandId"
+}
+```
+
+### Operations supportées
+
+- `REDUCE` : Diminuer le stock
+- `INCREASE` : Augmenter le stock
+- `SET` : Définir une valeur exacte
+
+## Tests
+
+### Test création commande
+
 ```bash
 curl -X POST http://localhost:8083/api/commands \
   -H "Content-Type: application/json" \
   -d '{
-    "clientId": "ID_DU_CLIENT_CRÉÉ",
-    "items": [
-      {
-        "productId": "ID_DU_PRODUIT_CRÉÉ",
-        "quantity": 1
-      }
-    ],
-    "shippingAddress": "456 Avenue des Champs, Lyon",
-    "paymentMethod": "Credit Card",
-    "notes": "Commande urgente"
+    "clientId": "68678f98ba1a43846781d929",
+    "items": [{"productId": "6867affef596063526aff95f", "quantity": 2}],
+    "shippingAddress": "123 Rue Test",
+    "paymentMethod": "Credit Card"
   }'
 ```
 
-## 🔧 Commandes Utiles
+### Test vérification stock
 
-### Docker Commands
 ```bash
-# Voir le statut de tous les conteneurs
-docker-compose -f docker-compose-microservices.yml ps
-
-# Redémarrer un service spécifique
-docker-compose -f docker-compose-microservices.yml restart product-service
-
-# Voir les logs d'un service
-docker logs product-service --tail 50 -f
-
-# Entrer dans un conteneur
-docker exec -it product-service bash
-
-# Reconstruire et redémarrer
-docker-compose -f docker-compose-microservices.yml up -d --build
-
-# Nettoyer tout
-docker-compose -f docker-compose-microservices.yml down -v
-docker system prune -a
+curl http://localhost:8081/api/produits/6867affef596063526aff95f
 ```
 
-### MongoDB Commands
-```bash
-# Se connecter à MongoDB Product
-docker exec -it mongodb-product mongosh mongodb://admin:admin123@localhost:27017/product_db
+## Logs utiles
 
-# Se connecter à MongoDB Client
-docker exec -it mongodb-client mongosh mongodb://admin:admin123@localhost:27017/client_db
-
-# Se connecter à MongoDB Command
-docker exec -it mongodb-command mongosh mongodb://admin:admin123@localhost:27017/command_db
+### Command Service
+```
+Nouvelle commande reçue...
+Commande sauvegardée: 6867bbe364ff991ccb3dbd6e
+Mise à jour stock envoyée - Produit: Test Product, Quantité: -2
+Tous les stocks mis à jour avec succès
 ```
 
-### Health Checks
-```bash
-# Vérifier la santé des services
-curl http://localhost:8081/api/produits/count
-curl http://localhost:8082/api/clients/count
-curl http://localhost:8083/api/commands/count
-
-# Test de connectivité
-ping localhost
-telnet localhost 8081
-telnet localhost 8082
-telnet localhost 8083
+### Product Service  
+```
+Mise à jour stock reçue - Produit: 6867affef596063526aff95f, Opération: REDUCE
+Stock mis à jour: Test Product (25 → 23)
 ```
 
-## 📁 Structure du Projet
+## Problèmes courants
 
-```
-microcommerce/
-├── client-microcommece/           # Service de gestion des clients
-│   ├── src/main/java/
-│   │   └── com/ecommerce/clientmicrocommerce/
-│   │       ├── config/RabbitMQConfig.java
-│   │       ├── controller/ClientController.java
-│   │       ├── dao/ClientDao.java
-│   │       ├── model/Client.java
-│   │       ├── repository/ClientRepository.java
-│   │       └── service/ClientMessageListener.java
-│   ├── Dockerfile
-│   └── pom.xml
-├── command-micrommece/            # Service orchestrateur de commandes
-│   ├── src/main/java/
-│   │   └── com/ecommerce/commandmicrocommerce/
-│   │       ├── config/RabbitMQConfig.java
-│   │       ├── controller/CommandController.java
-│   │       ├── dao/CommandDao.java
-│   │       ├── model/Command.java
-│   │       ├── repository/CommandRepository.java
-│   │       └── service/MicroserviceOrchestrator.java
-│   ├── Dockerfile
-│   └── pom.xml
-├── product-microcommerce/         # Service de gestion des produits
-│   ├── src/main/java/
-│   │   └── com/ecommerce/microcommerce/
-│   │       ├── config/RabbitMQConfig.java
-│   │       ├── controller/ProductController.java
-│   │       ├── dao/ProductDao.java
-│   │       ├── model/Product.java
-│   │       ├── repository/ProductRepository.java
-│   │       └── service/ProductMessageListener.java
-│   ├── Dockerfile
-│   └── pom.xml
-├── docker-compose-microservices.yml  # Configuration Docker complète
-├── docker-compose-rabbitmq.yml       # RabbitMQ standalone
-├── start-microservices.ps1           # Script de démarrage Windows
-├── start-microservices.sh            # Script de démarrage Linux/Mac
-├── MICROSERVICES_GUIDE.md            # Guide technique détaillé
-└── README.md                          # Ce fichier
-```
+### Timeout lors création commande
 
-## 🐛 Dépannage
+**Cause** : Services pas complètement démarrés ou RabbitMQ non disponible
 
-### Problèmes Courants
-
-#### Services "unhealthy"
+**Solution** : 
 ```bash
 # Vérifier les logs
-docker logs product-service
-docker logs client-service
 docker logs command-service
+docker logs product-service  
+docker logs rabbitmq-microservices
 
-# Redémarrer les services
+# Redémarrer si nécessaire
 docker-compose -f docker-compose-microservices.yml restart
 ```
 
-#### Connexion RabbitMQ échouée
-```bash
-# Vérifier RabbitMQ
-docker logs rabbitmq-microservices
+### Stock non mis à jour
 
-# Redémarrer RabbitMQ
-docker-compose -f docker-compose-microservices.yml restart rabbitmq
+**Vérifications** :
+1. RabbitMQ fonctionne-t-il ? `docker logs rabbitmq-microservices`
+2. Product Service écoute-t-il les messages ? `docker logs product-service`
+3. Queues créées ? Vérifier http://localhost:15672
+
+## Améliorations possibles
+
+- Réservation temporaire de stock
+- Historique des mouvements
+- Notifications de rupture de stock
+- Interface d'administration
+- Tests automatisés
+
+## Structure du projet
+
 ```
-
-#### MongoDB inaccessible
-```bash
-# Vérifier les conteneurs MongoDB
-docker ps | grep mongodb
-
-# Redémarrer MongoDB
-docker-compose -f docker-compose-microservices.yml restart mongodb-product mongodb-client mongodb-command
+microcommerce/
+├── client-microcommece/          # Service clients
+├── command-micrommece/           # Service commandes  
+├── product-microcommerce/        # Service produits
+└── docker-compose-microservices.yml
 ```
-
-#### Ports occupés
-```bash
-# Windows - Vérifier les ports utilisés
-netstat -ano | findstr :8081
-netstat -ano | findstr :8082
-netstat -ano | findstr :8083
-
-# Linux/Mac - Vérifier les ports utilisés
-lsof -i :8081
-lsof -i :8082
-lsof -i :8083
-```
-
-### Nettoyage Complet
-```bash
-# Arrêter tous les services
-docker-compose -f docker-compose-microservices.yml down -v
-
-# Supprimer les images
-docker rmi microcommerce-product-service microcommerce-client-service microcommerce-command-service
-
-# Nettoyer Docker
-docker system prune -a --volumes
-
-# Redémarrer tout
-docker-compose -f docker-compose-microservices.yml up -d --build
-```
-
-## 📊 Monitoring et Surveillance
-
-### RabbitMQ Management
-- **URL** : http://localhost:15672
-- **Surveillance** : Queues, Exchanges, Connections, Channels
-- **Métriques** : Message rates, Memory usage, Disk space
-
-### Logs en Temps Réel
-```bash
-# Tous les services
-docker-compose -f docker-compose-microservices.yml logs -f
-
-# Service spécifique
-docker logs product-service -f
-docker logs client-service -f
-docker logs command-service -f
-docker logs rabbitmq-microservices -f
-```
-
-### Métriques des Services
-```bash
-# Statistiques produits
-curl http://localhost:8081/api/produits/count
-
-# Statistiques clients  
-curl http://localhost:8082/api/clients/statistics
-
-# Statistiques commandes
-curl http://localhost:8083/api/commands/statistics
-```
-
-## 🎯 Fonctionnalités Clés
-
-✅ **Microservices découplés** avec communication asynchrone
-✅ **RabbitMQ** pour l'orchestration inter-services
-✅ **MongoDB** avec bases de données séparées par service
-✅ **Docker Compose** pour déploiement simplifié
-✅ **APIs REST** complètes avec CRUD operations
-✅ **Gestion des erreurs** et validation des données
-✅ **Correlation IDs** pour tracer les requêtes
-✅ **Health checks** automatiques
-✅ **Logs structurés** pour debugging
-✅ **Scripts de démarrage** automatisés
-
-## 🚀 Évolutions Futures
-
-- [ ] API Gateway avec Spring Cloud Gateway
-- [ ] Service Discovery avec Eureka
-- [ ] Authentification JWT
-- [ ] Métriques avec Prometheus/Grafana
-- [ ] Tests d'intégration
-- [ ] CI/CD Pipeline
-- [ ] Kubernetes deployment
-- [ ] Circuit Breaker pattern
-
-## 👥 Support
-
-Pour toute question ou problème :
-1. Consultez les logs : `docker-compose logs -f`
-2. Vérifiez RabbitMQ : http://localhost:15672
-3. Consultez le guide détaillé : `MICROSERVICES_GUIDE.md`
-
-## 📄 Licence
-
-Ce projet est un exemple éducatif pour démontrer une architecture microservices avec Spring Boot et RabbitMQ.
