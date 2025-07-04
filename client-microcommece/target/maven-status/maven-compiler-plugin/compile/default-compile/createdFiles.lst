@@ -1,0 +1,6 @@
+com\ecommerce\clientmicrocommerce\model\Client.class
+com\ecommerce\clientmicrocommerce\dao\ClientDao.class
+com\ecommerce\clientmicrocommerce\controller\ClientController.class
+com\ecommerce\clientmicrocommerce\repository\ClientRepository.class
+com\ecommerce\clientmicrocommerce\ClientMicrocommerceApplication.class
+com\ecommerce\clientmicrocommerce\dao\ClientDaoImpl.class

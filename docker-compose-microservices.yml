@@ -1,0 +1,228 @@
+version: '3.8'
+
+services:
+  # RabbitMQ Message Broker
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq-microservices
+    restart: always
+    ports:
+      - "5672:5672"    # AMQP port
+      - "15672:15672"  # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin123
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - microcommerce-network
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 30s
+      timeout: 30s
+      retries: 3
+
+  # MongoDB for Product Service
+  mongodb-product:
+    image: mongo:latest
+    container_name: mongodb-product
+    restart: always
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin123
+      MONGO_INITDB_DATABASE: product_db
+    volumes:
+      - mongodb_product_data:/data/db
+    networks:
+      - microcommerce-network
+
+  # MongoDB for Client Service
+  mongodb-client:
+    image: mongo:latest
+    container_name: mongodb-client
+    restart: always
+    ports:
+      - "27018:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin123
+      MONGO_INITDB_DATABASE: client_db
+    volumes:
+      - mongodb_client_data:/data/db
+    networks:
+      - microcommerce-network
+
+  # MongoDB for Command Service
+  mongodb-command:
+    image: mongo:latest
+    container_name: mongodb-command
+    restart: always
+    ports:
+      - "27019:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin123
+      MONGO_INITDB_DATABASE: command_db
+    volumes:
+      - mongodb_command_data:/data/db
+    networks:
+      - microcommerce-network
+
+  # ===== MONGO EXPRESS - WEB INTERFACES =====
+  
+  # Mongo Express for Product Database
+  mongo-express-product:
+    image: mongo-express:latest
+    container_name: mongo-express-product
+    restart: always
+    ports:
+      - "8091:8081"
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: admin
+      ME_CONFIG_MONGODB_ADMINPASSWORD: admin123
+      ME_CONFIG_MONGODB_URL: mongodb://admin:admin123@mongodb-product:27017/?authSource=admin
+      ME_CONFIG_MONGODB_SERVER: mongodb-product
+      ME_CONFIG_MONGODB_PORT: 27017
+      ME_CONFIG_BASICAUTH_USERNAME: admin
+      ME_CONFIG_BASICAUTH_PASSWORD: admin123
+      ME_CONFIG_SITE_BASEURL: /
+    depends_on:
+      - mongodb-product
+    networks:
+      - microcommerce-network
+
+  # Mongo Express for Client Database  
+  mongo-express-client:
+    image: mongo-express:latest
+    container_name: mongo-express-client
+    restart: always
+    ports:
+      - "8092:8081"
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: admin
+      ME_CONFIG_MONGODB_ADMINPASSWORD: admin123
+      ME_CONFIG_MONGODB_URL: mongodb://admin:admin123@mongodb-client:27017/?authSource=admin
+      ME_CONFIG_MONGODB_SERVER: mongodb-client
+      ME_CONFIG_MONGODB_PORT: 27017
+      ME_CONFIG_BASICAUTH_USERNAME: admin
+      ME_CONFIG_BASICAUTH_PASSWORD: admin123
+      ME_CONFIG_SITE_BASEURL: /
+    depends_on:
+      - mongodb-client
+    networks:
+      - microcommerce-network
+
+  # Mongo Express for Command Database
+  mongo-express-command:
+    image: mongo-express:latest
+    container_name: mongo-express-command
+    restart: always
+    ports:
+      - "8093:8081"
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: admin
+      ME_CONFIG_MONGODB_ADMINPASSWORD: admin123
+      ME_CONFIG_MONGODB_URL: mongodb://admin:admin123@mongodb-command:27017/?authSource=admin
+      ME_CONFIG_MONGODB_SERVER: mongodb-command
+      ME_CONFIG_MONGODB_PORT: 27017
+      ME_CONFIG_BASICAUTH_USERNAME: admin
+      ME_CONFIG_BASICAUTH_PASSWORD: admin123
+      ME_CONFIG_SITE_BASEURL: /
+    depends_on:
+      - mongodb-command
+    networks:
+      - microcommerce-network
+
+  # ===== MICROSERVICES =====
+
+  # Product Microservice
+  product-service:
+    build:
+      context: ./product-microcommerce
+      dockerfile: Dockerfile
+    container_name: product-service
+    restart: always
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_DATA_MONGODB_URI: mongodb://admin:admin123@mongodb-product:27017/product_db?authSource=admin
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: admin
+      SPRING_RABBITMQ_PASSWORD: admin123
+    depends_on:
+      - mongodb-product
+      - rabbitmq
+    networks:
+      - microcommerce-network
+    healthcheck:
+      test: "curl -f http://localhost:8081/api/products || exit 1"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Client Microservice
+  client-service:
+    build:
+      context: ./client-microcommece
+      dockerfile: Dockerfile
+    container_name: client-service
+    restart: always
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_DATA_MONGODB_URI: mongodb://admin:admin123@mongodb-client:27017/client_db?authSource=admin
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: admin
+      SPRING_RABBITMQ_PASSWORD: admin123
+    depends_on:
+      - mongodb-client
+      - rabbitmq
+    networks:
+      - microcommerce-network
+    healthcheck:
+      test: "curl -f http://localhost:8082/api/clients || exit 1"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Command Microservice (Orchestrator)
+  command-service:
+    build:
+      context: ./command-micrommece
+      dockerfile: Dockerfile
+    container_name: command-service
+    restart: always
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_DATA_MONGODB_URI: mongodb://admin:admin123@mongodb-command:27017/command_db?authSource=admin
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: admin
+      SPRING_RABBITMQ_PASSWORD: admin123
+    depends_on:
+      - mongodb-command
+      - rabbitmq
+      - product-service
+      - client-service
+    networks:
+      - microcommerce-network
+    healthcheck:
+      test: "curl -f http://localhost:8083/api/commands || exit 1"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  rabbitmq_data:
+  mongodb_product_data:
+  mongodb_client_data:
+  mongodb_command_data:
+
+networks:
+  microcommerce-network:
+    driver: bridge 

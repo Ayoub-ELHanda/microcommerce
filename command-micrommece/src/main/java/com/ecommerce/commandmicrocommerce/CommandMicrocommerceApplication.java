@@ -1,0 +1,13 @@
+package com.ecommerce.commandmicrocommerce;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class CommandMicrocommerceApplication {
+
+	public static void main(String[] args) {
+		SpringApplication.run(CommandMicrocommerceApplication.class, args);
+	}
+
+} 
