@@ -53,6 +53,13 @@ public class ProductController {
             error.put("error", "Le prix ne peut pas être négatif");
             return ResponseEntity.badRequest().body(error);
         }
+
+        // Validation du stock
+        if (product.getStock() < 0) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "Le stock ne peut pas être négatif");
+            return ResponseEntity.badRequest().body(error);
+        }
         
         // Réinitialiser l'ID pour forcer la création d'un nouveau produit
         product.setId(null);
@@ -80,6 +87,13 @@ public class ProductController {
         if (product.getPrix() < 0) {
             Map<String, String> error = new HashMap<>();
             error.put("error", "Le prix ne peut pas être négatif");
+            return ResponseEntity.badRequest().body(error);
+        }
+
+        // Validation du stock
+        if (product.getStock() < 0) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "Le stock ne peut pas être négatif");
             return ResponseEntity.badRequest().body(error);
         }
         
@@ -121,6 +135,15 @@ public class ProductController {
         }
         if (updates.containsKey("prix")) {
             existingProduct.setPrix(((Number) updates.get("prix")).intValue());
+        }
+        if (updates.containsKey("stock")) {
+            int newStock = ((Number) updates.get("stock")).intValue();
+            if (newStock < 0) {
+                Map<String, String> error = new HashMap<>();
+                error.put("error", "Le stock ne peut pas être négatif");
+                return ResponseEntity.badRequest().body(error);
+            }
+            existingProduct.setStock(newStock);
         }
         
         Product updatedProduct = productDao.save(existingProduct);

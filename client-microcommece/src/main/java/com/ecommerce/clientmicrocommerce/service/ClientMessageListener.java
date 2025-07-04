@@ -24,28 +24,24 @@ public class ClientMessageListener {
     @RabbitListener(queues = RabbitMQConfig.CLIENT_QUERY_QUEUE)
     public void handleClientQuery(Map<String, Object> message) {
         try {
-            String action = (String) message.get("action");
             String correlationId = (String) message.get("correlationId");
+            String clientId = (String) message.get("clientId");
+            String action = (String) message.get("action");
             
-            System.out.println("👤 Client Service - Requête reçue: " + action + " (ID: " + correlationId + ")");
+            System.out.println("👤 Client Service - Requête reçue pour client: " + clientId + " (ID: " + correlationId + ")");
 
             Map<String, Object> response = new HashMap<>();
             response.put("correlationId", correlationId);
             response.put("service", "client-service");
 
-            switch (action) {
-                case "GET_CLIENT":
-                    String clientId = (String) message.get("clientId");
-                    handleGetClient(clientId, response);
-                    break;
-                
-                case "GET_ALL_CLIENTS":
-                    handleGetAllClients(response);
-                    break;
-                
-                default:
-                    response.put("status", "ERROR");
-                    response.put("message", "Action non reconnue: " + action);
+            // If clientId is provided, treat it as a GET_CLIENT request
+            if (clientId != null && !clientId.trim().isEmpty()) {
+                handleGetClient(clientId, response);
+            } else if ("GET_ALL_CLIENTS".equals(action)) {
+                handleGetAllClients(response);
+            } else {
+                response.put("status", "ERROR");
+                response.put("message", "Client ID requis ou action non reconnue");
             }
 
             // Envoyer la réponse

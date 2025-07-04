@@ -14,6 +14,10 @@ public class RabbitMQConfig {
     public static final String PRODUCT_QUERY_QUEUE = "product.query.queue";
     public static final String PRODUCT_RESPONSE_QUEUE = "product.response.queue";
     
+    // ===== NOUVELLES QUEUES POUR LA GESTION DU STOCK =====
+    public static final String STOCK_UPDATE_QUEUE = "stock.update.queue";
+    public static final String STOCK_RESPONSE_QUEUE = "stock.response.queue";
+    
     // Exchange pour la communication entre services
     public static final String MICROSERVICE_EXCHANGE = "microservice.exchange";
 
@@ -21,6 +25,8 @@ public class RabbitMQConfig {
     public DirectExchange microserviceExchange() {
         return new DirectExchange(MICROSERVICE_EXCHANGE);
     }
+
+    // ===== QUEUES EXISTANTES =====
 
     @Bean
     public Queue productQueryQueue() {
@@ -31,6 +37,20 @@ public class RabbitMQConfig {
     public Queue productResponseQueue() {
         return QueueBuilder.durable(PRODUCT_RESPONSE_QUEUE).build();
     }
+
+    // ===== NOUVELLES QUEUES STOCK =====
+
+    @Bean
+    public Queue stockUpdateQueue() {
+        return QueueBuilder.durable(STOCK_UPDATE_QUEUE).build();
+    }
+
+    @Bean
+    public Queue stockResponseQueue() {
+        return QueueBuilder.durable(STOCK_RESPONSE_QUEUE).build();
+    }
+
+    // ===== BINDINGS EXISTANTS =====
 
     @Bean
     public Binding productQueryBinding() {
@@ -46,6 +66,24 @@ public class RabbitMQConfig {
                 .bind(productResponseQueue())
                 .to(microserviceExchange())
                 .with("product.response");
+    }
+
+    // ===== NOUVEAUX BINDINGS STOCK =====
+
+    @Bean
+    public Binding stockUpdateBinding() {
+        return BindingBuilder
+                .bind(stockUpdateQueue())
+                .to(microserviceExchange())
+                .with("stock.update");
+    }
+
+    @Bean
+    public Binding stockResponseBinding() {
+        return BindingBuilder
+                .bind(stockResponseQueue())
+                .to(microserviceExchange())
+                .with("stock.response");
     }
 
     @Bean

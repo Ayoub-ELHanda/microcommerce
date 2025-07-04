@@ -35,6 +35,14 @@ public class RabbitMQConfig {
     // Queue pour les réponses des commandes créées
     public static final String COMMAND_RESPONSE_QUEUE = "command.response.queue";
 
+    // ===== NOUVELLES QUEUES POUR LA GESTION DU STOCK =====
+    
+    // Queue pour envoyer des mises à jour de stock
+    public static final String STOCK_UPDATE_QUEUE = "stock.update.queue";
+    
+    // Queue pour recevoir des réponses de mise à jour de stock
+    public static final String STOCK_RESPONSE_QUEUE = "stock.response.queue";
+
     @Bean
     public DirectExchange microserviceExchange() {
         return new DirectExchange(MICROSERVICE_EXCHANGE);
@@ -82,6 +90,18 @@ public class RabbitMQConfig {
     @Bean
     public Queue commandResponseQueue() {
         return QueueBuilder.durable(COMMAND_RESPONSE_QUEUE).build();
+    }
+
+    // ===== NOUVELLES QUEUES STOCK =====
+    
+    @Bean
+    public Queue stockUpdateQueue() {
+        return QueueBuilder.durable(STOCK_UPDATE_QUEUE).build();
+    }
+    
+    @Bean
+    public Queue stockResponseQueue() {
+        return QueueBuilder.durable(STOCK_RESPONSE_QUEUE).build();
     }
 
     // ===== BINDINGS EXISTANTS =====
@@ -150,6 +170,24 @@ public class RabbitMQConfig {
                 .bind(commandResponseQueue())
                 .to(microserviceExchange())
                 .with("command.response");
+    }
+
+    // ===== NOUVEAUX BINDINGS STOCK =====
+    
+    @Bean
+    public Binding stockUpdateBinding() {
+        return BindingBuilder
+                .bind(stockUpdateQueue())
+                .to(microserviceExchange())
+                .with("stock.update");
+    }
+    
+    @Bean
+    public Binding stockResponseBinding() {
+        return BindingBuilder
+                .bind(stockResponseQueue())
+                .to(microserviceExchange())
+                .with("stock.response");
     }
 
     @Bean

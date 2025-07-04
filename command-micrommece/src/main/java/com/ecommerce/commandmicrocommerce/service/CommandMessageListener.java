@@ -196,16 +196,103 @@ public class CommandMessageListener {
                 command.setPaymentMethod((String) commandRequest.get("paymentMethod"));
                 command.setNotes((String) commandRequest.get("notes"));
 
-                // Sauvegarder
+                // ===== NOUVEAU: VÉRIFICATION ET MISE À JOUR DU STOCK =====
+                
+                // 1. Vérifier d'abord la disponibilité du stock pour tous les produits
+                boolean stockSuffisant = true;
+                
+                for (int i = 0; i < itemsRequest.size(); i++) {
+                    Map<String, Object> itemRequest = itemsRequest.get(i);
+                    Map<String, Object> productResponse = productFutures.get(i).get();
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> productData = (Map<String, Object>) productResponse.get("product");
+                    
+                    String productName = (String) productData.get("nom");
+                    int currentStock = ((Number) productData.get("stock")).intValue();
+                    int requestedQuantity = (Integer) itemRequest.get("quantity");
+                    
+                    if (currentStock < requestedQuantity) {
+                        stockSuffisant = false;
+                        System.out.println("❌ Commande rejetée - Stock insuffisant: " + productName + 
+                                           ": Stock insuffisant (disponible: " + currentStock + ", demandé: " + requestedQuantity + ").");
+                    }
+                }
+                
+                if (!stockSuffisant) {
+                    response.put("status", "INSUFFICIENT_STOCK");
+                    response.put("message", "Stock insuffisant pour certains produits");
+                    sendCommandResponse(response);
+                    return null;
+                }
+
+                // 2. Si le stock est suffisant, sauvegarder la commande D'ABORD
                 Command savedCommand = commandDao.save(command);
+                System.out.println("✅ Commande sauvegardée: " + savedCommand.getId());
+
+                // 3. Ensuite, réduire le stock via RabbitMQ pour chaque produit
+                List<CompletableFuture<Map<String, Object>>> stockUpdateFutures = new ArrayList<>();
+                
+                for (CommandItem item : commandItems) {
+                    CompletableFuture<Map<String, Object>> stockUpdateFuture = sendStockUpdate(
+                        item.getProductId(), 
+                        "REDUCE", 
+                        item.getQuantity(),
+                        savedCommand.getId()
+                    );
+                    stockUpdateFutures.add(stockUpdateFuture);
+                    
+                    System.out.println("📦 Mise à jour stock envoyée - Produit: " + item.getProductName() + 
+                                     ", Quantité: -" + item.getQuantity());
+                }
+
+                // 4. Attendre les confirmations de mise à jour de stock (optionnel)
+                try {
+                    CompletableFuture<Void> allStockUpdates = CompletableFuture.allOf(
+                        stockUpdateFutures.toArray(new CompletableFuture[0])
+                    );
+                    
+                    // Attendre maximum 5 secondes pour les mises à jour de stock
+                    allStockUpdates.get(5, java.util.concurrent.TimeUnit.SECONDS);
+                    
+                    // Vérifier les résultats des mises à jour
+                    boolean stockUpdateSuccess = true;
+                    
+                    for (int i = 0; i < stockUpdateFutures.size(); i++) {
+                        Map<String, Object> stockResponse = stockUpdateFutures.get(i).get();
+                        String stockStatus = (String) stockResponse.get("status");
+                        
+                        if (!"SUCCESS".equals(stockStatus)) {
+                            stockUpdateSuccess = false;
+                            CommandItem item = commandItems.get(i);
+                            System.out.println("⚠️ Problèmes lors de la mise à jour du stock: " + item.getProductName() + 
+                                               ": " + stockResponse.get("message"));
+                        }
+                    }
+                    
+                    if (!stockUpdateSuccess) {
+                        // Marquer la commande comme ayant des problèmes de stock
+                        savedCommand.setStatus("STOCK_ERROR");
+                        savedCommand.setNotes("ERREUR STOCK: Stock insuffisant pour certains produits");
+                        commandDao.save(savedCommand);
+                        
+                        System.out.println("⚠️ Problèmes lors de la mise à jour du stock");
+                    } else {
+                        System.out.println("✅ Tous les stocks mis à jour avec succès");
+                    }
+                    
+                } catch (java.util.concurrent.TimeoutException e) {
+                    System.out.println("⚠️ Timeout lors de la mise à jour du stock - la commande est créée mais le stock pourrait ne pas être à jour");
+                } catch (Exception e) {
+                    System.err.println("❌ Erreur lors de la vérification des mises à jour de stock: " + e.getMessage());
+                }
 
                 response.put("status", "SUCCESS");
                 response.put("command", savedCommand);
                 response.put("client", clientData);
-                response.put("message", "Commande créée avec succès via RabbitMQ");
+                response.put("message", "Commande créée avec succès via RabbitMQ - Stock mis à jour");
 
                 // Publier un événement de création
-                publishCommandEvent("COMMAND_CREATED", savedCommand, "Nouvelle commande créée via RabbitMQ");
+                publishCommandEvent("COMMAND_CREATED", savedCommand, "Nouvelle commande créée via RabbitMQ avec mise à jour du stock");
 
                 sendCommandResponse(response);
 
@@ -259,5 +346,39 @@ public class CommandMessageListener {
         } catch (Exception e) {
             System.err.println("❌ Erreur lors de la publication de l'événement: " + e.getMessage());
         }
+    }
+
+    /**
+     * Envoie une mise à jour de stock via RabbitMQ
+     */
+    private CompletableFuture<Map<String, Object>> sendStockUpdate(String productId, String operation, int quantity, String commandId) {
+        String correlationId = java.util.UUID.randomUUID().toString();
+        
+        Map<String, Object> stockUpdateMessage = new HashMap<>();
+        stockUpdateMessage.put("correlationId", correlationId);
+        stockUpdateMessage.put("productId", productId);
+        stockUpdateMessage.put("operation", operation);
+        stockUpdateMessage.put("quantity", quantity);
+        stockUpdateMessage.put("commandId", commandId);
+        stockUpdateMessage.put("service", "command-service");
+        stockUpdateMessage.put("timestamp", System.currentTimeMillis());
+        
+        // Créer un CompletableFuture pour la réponse
+        CompletableFuture<Map<String, Object>> future = new CompletableFuture<>();
+        orchestrator.registerStockUpdateRequest(correlationId, future);
+        
+        // Envoyer le message
+        rabbitTemplate.convertAndSend(
+            RabbitMQConfig.MICROSERVICE_EXCHANGE,
+            "stock.update",
+            stockUpdateMessage
+        );
+        
+        System.out.println("📤 Mise à jour stock envoyée - Produit: " + productId + 
+                          ", Opération: " + operation + 
+                          ", Quantité: " + quantity + 
+                          ", Correlation: " + correlationId);
+        
+        return future;
     }
 } 
